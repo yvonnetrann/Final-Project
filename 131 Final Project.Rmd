@@ -1,0 +1,20 @@
+---
+title: "Final Project"
+output: html_document
+---
+
+# Introduction 
+
+The purpose of this project is to generate a model that will predict what makes for a good/bad Tinder experience.
+
+# What is Tinder?
+
+Tinder is an online dating and geosocial networking application in which users can "swipe right" or "swipe left" in order to like or dislike another user's profile. The application uses a "double opt-in" system where both users must match before they can exchange messages.
+
+# Benefits of this model
+
+Reviews of a mobile application can give us valuable insights about what works, what doesn't work, what should work, and what shouldn't work. In this case, Tinder can take these reviews to make the necessary changes in ensuring that current and future users will have the best experience as possible when active on the app.
+
+# Data Cleaning
+
+
