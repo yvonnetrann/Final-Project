@@ -15,6 +15,47 @@ Tinder is an online dating and geosocial networking application in which users c
 
 Reviews of a mobile application can give us valuable insights about what works, what doesn't work, what should work, and what shouldn't work. In this case, Tinder can take these reviews to make the necessary changes in ensuring that current and future users will have the best experience as possible when active on the app.
 
+
+# Loading Data and Packages
+```{r}
+library(tidymodels)
+library(tidyverse)
+library(readr)
+library(ggplot2)
+tinder_reviews <- read_csv("~/Downloads/tinder_google_play_reviews.csv")
+View(tinder_reviews)
+```
+
+
 # Data Cleaning
 
+While the dataset is relatively organized, we are going to clean the data even further to only contain the necessary variables and information needed for our data analysis.
+
+```{r}
+#creating and adding date column 
+tinder_reviews$date = substr(tinder_reviews$at,1,10)
+tinder_reviews$date = as.Date(tinder_reviews$date)
+
+#selecting only necessary columns 
+tinder <- tinder_reviews %>%
+  select(content,score,date) 
+
+#check for any missing values
+is.na(tinder)
+```
+
+# Data Splitting
+
+The data was split in a 80% training, 20% testing split. Stratified sampling was used to ensure that each subgroup (individuals rating the app from 0-5) receives proper representation within the sample.
+
+```{r}
+set.seed(2022)
+tinder_split <- tinder %>%
+  initial_split(prop = 0.8, strata = "score")
+
+tinder_train <- training(tinder_split)
+tinder_test <- testing(tinder_split)
+```
+
+The training data set has about 426,000+ observations, while the testing data set has almost 107,000 observations.
 
