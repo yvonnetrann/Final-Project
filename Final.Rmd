@@ -1,0 +1,531 @@
+---
+title: "final"
+output: html_document
+date: '2022-06-06'
+---
+# Project Introduction 
+
+The purpose of this project is to generate a model that will predict what makes for a good/bad Tinder experience. We will be using a Tinder review dataset from the Google Play Store, in which data has been collected from July 2013 to June 2022. Ultimately, the text and score variables will help predict whether a customer recommends this product.
+
+# What is Tinder?
+
+Tinder is an online dating and geosocial networking application in which users can "swipe right" or "swipe left" in order to like or dislike another user's profile. The application uses a "double opt-in" system where both users must match before they can exchange messages.
+
+# Benefits of this model/project
+
+Reviews of a mobile application can give us valuable insights about what works, what doesn't work, what should work, and what shouldn't work. In this case, Tinder can take these reviews to make the necessary changes in ensuring that current and future users will have the best experience as possible when active on the app. Through my project, I hope to help narrow down potential complaints/compliments from previous users.
+
+# Loading Data and Packages
+
+```{r}
+library(tidymodels)
+library(tidyverse)
+library(readr)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(wordcloud)
+library(RColorBrewer)
+library(stringr)
+library(tm)
+library(rpart.plot)
+tinder_reviews1 <- read_csv("~/Downloads/tinder_google_play_reviews.csv") 
+
+```
+
+# Data Cleaning and Altering 
+```{r}
+tinder_reviews <- tinder_reviews1 %>% #remove punctuation and digits
+  mutate("content" = gsub("[[:punct:][:digit:]]", "", content))
+
+tinder_reviews$date = substr(tinder_reviews$at,1,10)
+tinder_reviews <- filter(tinder_reviews, date != "NA")
+tinder_reviews <- filter(tinder_reviews, content != "NA")
+tinder_reviews$score = as.character(tinder_reviews$score)
+
+tinder_reviews <- tinder_reviews %>%
+  select(content,score)
+```
+
+
+# Exploratory Data Analysis
+
+To formally address, I believe that working with reviews is quite challenging as there is no specific way individuals write. Every person has their own writing style, and because of that, it is much more difficult to analyze. 
+
+As a solution, I have tried to create a function that will detect key words from reviews. These words will then be implemented into a table containing the frequency of the words as well as a word cloud, in which we can have a clearer visual of common texts used to determine categorize good/average/bad reviews. This will allow us to draw conclusions based on the end result that's followed along with its companion app score. A brief analysis of the score count will also be conducted, in order for us to get a clearer image of what is expected of such reviews later on.
+
+
+## Function Approach 
+In order to create this function, I had to create something that would perform the following:
+
+- Convert the text to lower case
+- Identify and remove any unnecessary common words, as well as stopwords
+- Alter main keywords depending on the complementary word position
+- Generate a new table with only the filtered keywords and their rating
+
+## Limitations
+There are also some limitations that I believe were out of my control/experience, such as:
+
+- Foreign languages; this function only works with the English language
+- Unproper grammar/spelling; this function will not identify and coorect any misspelled words
+- Foreign symbols
+
+### Step 1
+* Create word objects used to identify irrelevant keywords and stopwords
+```{r}
+complement <- c("can", "can't", "cant", "cannot", "do", "does", "doesn't", "doesnt","not", "zero", "very", "absolutely", "totally","don't", "dont","got", "really", "fake", "real", "super", "no", "few", "will", "won't", "wont","would","wouldn't","should", "shouldn't", "was", "wasn't", "wasnt", "did", "didn't", "didnt","too", "many", "much", "could", "couldn't", "true", "truly", "have", "havent")
+
+irrelevant <- c("i", "i'm", "im", "id", "i've", "ive", "i'll", "am", "you", "your're", "youre", "he", "he's", "she", "she's", "his", "her", "we", "we're", "they", "they're", "their", "them", "then", "are", "it", "its", "it's", "is", "isn't", "the", "to", "in", "on", "this", "that","thats", "there", "theres", "here", "or", "any", "for", "a", "the", "has", "hasn't", "had", "have", "haven't", "but", "however", "whatever", "perhaps", "some", "my", "me", "your", "yours", "hers", "and", "of", "how", "who", "what", "why", "where", "when", "as", "at", "yet", "with", "without", "be", "been", "being", "out", "from", "if", "also", "just", "so", "an", "which", "by", "than", "get", "now", "way", "all", "", "app", "though", "u","tinder", "apps")
+
+stopwords <- stopwords('english')
+
+basic_rating_words <- c("good", "great", "best", "love", "worst", "hate", "worse", "like", "dislike")
+
+words_merged <- c(irrelevant, complement, stopwords, basic_rating_words)
+
+```
+
+### Step 2
+* Create functions 
+```{r}
+#functions
+text_analysis <- function(content, score){
+    temp_words_df <- data.frame()
+    
+    relevant_words <-  tolower(unlist(strsplit(as.character(content), split = " ")))
+    relevant_words_eval <- relevant_words %in% words_merged
+    relevant_words_pos <- which(relevant_words_eval == FALSE) 
+    relevant_words[relevant_words_pos] <- paste(relevant_words[relevant_words_pos], ", ", sep = "")
+    relevant_words <- paste(relevant_words, collapse = " ")
+    
+            for(idea in unlist(strsplit(relevant_words, split = ", "))){
+
+                if(is.na(idea) | idea == ""){
+                break()
+                }
+
+             content_split <- tolower(unlist(strsplit(idea, split = " ")))
+             vector_eval <-  content_split %in% words_merged
+             word_pos <- c(1:length(content_split))
+             comp_words <- match(content_split, complement, nomatch = 0)
+
+                    if(all(comp_words == 0)){
+
+                        is_comp_eval <- 0
+                        is_comp_word <- ""
+
+                        }else{
+
+                        comp_word_filter <- comp_words[comp_words > 0]
+                        comp_word_pos <- match(complement, content_split, nomatch = 0)
+                        comp_word_pos <- sort(comp_word_pos[comp_word_pos > 0])
+                        comp_word_diff <- diff(comp_word_pos)
+
+                         if (length(comp_word_diff) == 0){
+                            comp_word_diff <- 0
+                             }
+                            
+                         if(length(comp_word_filter) > 1 & comp_word_diff[1] == 1){
+
+                          is_comp_eval <- match(complement[comp_word_filter], content_split)
+                          is_comp_eval <- is_comp_eval[length(is_comp_eval)]
+                          is_comp_word <- paste(content_split[comp_word_pos], collapse = " ")
+
+                            }else{
+
+                            is_comp_eval <- match(complement[comp_word_filter], content_split)
+                            is_comp_eval <- is_comp_eval[length(is_comp_eval)]
+                            is_comp_word <- content_split[is_comp_eval[length(is_comp_eval)]]
+
+                            } 
+                        }
+
+                    for_temp_words_df <- data.frame("content" = content_split) %>%
+                        cbind(vector_eval) %>% 
+                        cbind(score) %>%
+                        cbind(is_comp_eval)%>%
+                        cbind(word_pos)%>%
+                        cbind(is_comp_word[1]) %>%
+                        mutate("diff" = word_pos - is_comp_eval)%>%
+                        mutate(content_final = case_when(is_comp_eval > 0 & diff == 1  ~ paste(is_comp_word, content),
+                                                        is_comp_eval > 0 & diff >= 2  ~ content, 
+                                                        is_comp_eval > 0 & diff < 0  ~ content,
+                                                        is_comp_eval == 0 ~ content)) %>%
+                        filter(vector_eval == FALSE)%>%
+                        filter(is.na(content_final) == FALSE)%>%
+                        select(c("content_final" ,"score"))
+                
+                        temp_words_df <- rbind(temp_words_df,for_temp_words_df)
+                
+                }
+
+    return(temp_words_df)
+}
+
+processed_words_df <- data.frame() 
+
+#drawing a random sample as dataset is too large to create a typical term-document matrix for word clouds
+df_size <- count(tinder_reviews)
+set.seed(000)
+cloud_sample <- sample(1:531374, replace = FALSE, prob = NULL)
+for(i in cloud_sample){
+ processed_words_df <- rbind(processed_words_df, text_analysis(tinder_reviews[i, 'content'], tinder_reviews[i, 'score']))
+}
+
+```
+
+To check that our function runs, let's try a couple of sample inputs:
+```{r}
+text_analysis("i really enjoyed talking to people on the app", 4)
+text_analysis("app sucks I prefer Bumble instead", 1)
+```
+From the output, we can see that the function correctly filters out relevant words, and also assigns them to their corresponding scores. This recording be useful later on when we take a deeper look into the syntax individuals use when rating the app. 
+
+### Step 3
+* Create tables containing the frequency of the words, as well as word clouds
+
+Good:
+```{r}
+cloud_table_good <- processed_words_df %>%
+filter(score > 3) %>%
+group_by(content_final) %>%
+count()%>%
+arrange(-n)
+
+goodtable <- as.data.frame(cloud_table_good)
+
+#top 10 words for good reviews
+head(goodtable, 10)
+
+set.seed(1234)
+good_cloud <- wordcloud(words = cloud_table_good$content_final, 
+          freq = cloud_table_good$n, 
+          min.freq = 50, 
+          max.words=200, 
+          random.order=FALSE, 
+          rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+
+```
+Shown through the table and word cloud, it can be concluded that the top 10 words included in a good review are:
+
+* people
+* fun			
+* nice			
+* easy			
+* works			
+* new			
+* use			
+* always			
+* found			
+* meet
+
+Based on the words above, it can be indicated that users enjoy the app because of fun and nice interactions with other individuals. It's an easy app to meet other people, and appears to be very accessible.
+
+Average:
+```{r}
+cloud_table_avg <- processed_words_df %>%
+filter(score == 3) %>%
+group_by(content_final) %>%
+count()%>%
+arrange(-n)
+
+avgtable <- as.data.frame(cloud_table_avg)
+
+#top 10 words for average reviews
+head(avgtable, 10)
+
+set.seed(5678)
+avg_cloud <- wordcloud(words = cloud_table_avg$content_final, 
+          freq = cloud_table_avg$n, 
+          min.freq = 50, 
+          max.words=200, 
+          random.order=FALSE, 
+          rot.per=0.35, 
+          colors=brewer.pal(8, "Set2"))
+```
+For average reviews, the top 10 words were:
+* time		
+* amount		
+* back		
+* click			
+* conversation			
+* fix	
+* kik			
+* match			
+* matches			
+* message
+
+To draw a conclusion, it can be interpreted that people do nto have a bad time on the app, but in terms of conversing with other individuals and being able to click, there is nothing incredible about the application that would guarantee dating success. It also appears as if finding a match may not be too difficult, but not the quickest either. 
+
+Bad:
+```{r}
+cloud_table_bad <- processed_words_df %>%
+filter(score < 3) %>%
+group_by(content_final) %>%
+count()%>%
+arrange(-n)
+
+badtable <- as.data.frame(cloud_table_bad)
+
+#top 10 words for bad reviews
+head(badtable,10)
+
+set.seed(9101)
+bad_cloud <- wordcloud(words = cloud_table_bad$content_final, 
+          freq = cloud_table_bad$n, 
+          min.freq = 50, 
+          max.words=200, 
+          random.order=FALSE, 
+          rot.per=0.35, 
+          colors=brewer.pal(8, "Paired"))
+```
+For the main key words included in a bad review, the top 10 are listed below:
+
+* account			
+* time		
+* match			
+* phone		
+* banned		
+* even		
+* money		
+* number		
+* pay		
+* people
+
+The biggest concerns in regards to bad reviews were that of subscription payments and accounts being banned. It appears as if many individuals are getting banned for some reason - possibly "inappropriate" content on their profile - and that is a main factor in why ratings are so low. The other issue is in terms of pricing and money, as users may believe that the premium subscriptions are not worth the money, and that could be something to check out. 
+
+
+### Step 4
+Now, we going to create a dataset with all of the filtered words & scores combined to use for the rest of our exploratory analysis and model building. To have more variables to work with, I will also be creating a new column that will categorize each word & score pairing under a good/average/bad rating:
+```{r}
+#create dataset with all the good pairings
+good <- processed_words_df %>%
+filter(score > 3) %>%
+group_by(content_final) 
+
+#create a dataset with all the average pairings
+avg <- processed_words_df %>%
+filter(score == 3) %>%
+group_by(content_final) 
+
+#create a dataset with all the bad pairings
+bad <- processed_words_df %>%
+filter(score < 3) %>%
+group_by(content_final) 
+
+#merge datasets together, as well as creating a finalized one that will be used for the rest of our analysis and model building
+keywords <- rbind(good,avg,bad)
+Tinder <- keywords %>% 
+  mutate(Rating = case_when(
+    score > 3 ~ "Good",
+    score == 3 ~ "Average",
+    score < 3 ~ "Bad"))
+  
+```
+
+(Side Note: Keep in mind that some words may be repeating, as users may use them through different interpretations -- i.e. "very nice" vs "not nice")
+
+## Data Splitting
+
+Now that I have properly retrieved the data that I want to use for the rest of my analysis and model building, I will split it into a 80% training, 20% testing split. Stratified sampling was used as the score distribution was skewed. (See more on that in the Score Count)
+
+```{r}
+set.seed(131)
+tinder_split <- Tinder %>%
+  initial_split(prop = 0.8, strata = "score")
+
+tinder_train <- training(tinder_split)
+tinder_test <- testing(tinder_split)
+```
+
+The rest of the exploratory data analysis will be based on the training set of my finalized data, which has 2,399 observations. 
+
+## Score 
+
+Our goal is to figure out what affects a user's score in our model. Let's start off by looking at the distribution.
+```{r}
+tinder_train$score <- as.numeric(tinder_train$score)
+ggplot(tinder_train, aes(score)) +
+  geom_histogram(bins = 5, color = "white") +
+  labs(
+    title = "Histogram of Score"
+  ) 
+```
+Looking at all the scores, it appears to be right-skewed. We can look into this further by rating types. 
+
+```{r}
+ggplot(tinder_train, aes(score)) +
+  geom_histogram(bins = 5, color = "white") +
+  facet_wrap(~Rating, scales = "free_y") +
+  labs(
+    title = "Histogram of Score by Rating"
+  )
+```
+Specifically the Good class, you can see that ratings between 4-5 are relatively close. However, there is a much bigger distinction between the number of people who provided a bad review with a score of 1 versus a score of 2.
+
+Keeping this in mind, we will move on to our model building, in which I will use the predictor variables "content_final" and "Rating" to try to accurately predict potential scores given by users.
+
+# Model Building
+
+The four models that I have chosen to perform are the following:
+
+* Linear Regression
+* Boosted Tree
+* Ridge Regression
+* Logistic Regression
+
+## Creating the recipe and tweaking the data
+```{r}
+tinder_train$score <- as.numeric(tinder_train$score)
+
+recipe <- recipe(score ~ ., data = tinder_train) %>%
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_predictors())
+```
+
+* Folds
+```{r}
+#folds validation
+tinder_folds <- vfold_cv(tinder_train, strata = score, 
+                          v = 10)
+```
+
+### Linear Regression
+``` {r}
+lm_model <- linear_reg() %>% 
+  set_engine("lm")
+tinderworkflow <- workflow() %>% 
+  add_recipe(recipe) %>% 
+  add_model(lm_model)
+
+tinder_fit <- fit(tinderworkflow, tinder_train)
+multi_metric <- metric_set(rmse, rsq, mae)
+tinder_predict <- predict(tinder_fit, tinder_train) %>% 
+  bind_cols(tinder_train %>% select(score))
+
+multi_metric(tinder_predict, truth = score, estimate = .pred)
+
+```
+The $R^2$ value here is pretty high; it means that about 97% of variation in users' scores were explained by the model. This is likely because the relationship between score and the predictors are relatively linear. 
+
+### Boosted Tree
+```{r}
+bt_model <- boost_tree(mode = "regression",
+                       min_n = tune(),
+                       mtry = tune(),
+                       learn_rate = tune()) %>% 
+  set_engine("xgboost")
+
+bt_workflow <- workflow() %>% 
+  add_model(bt_model) %>% 
+  add_recipe(recipe)
+
+bt_params <- parameters(bt_model) %>% 
+  update(mtry = mtry(range= c(2, 120)),
+         learn_rate = learn_rate(range = c(-5, 0.2))
+  )
+
+# define grid
+bt_grid <- grid_regular(bt_params, levels = 2)
+
+bt_tune <- bt_workflow %>% 
+  tune_grid(
+    resamples = tinder_folds, 
+    grid = bt_grid
+    )
+
+save(bt_tune, bt_workflow, file = "~/Desktop/Final-Project/test.Rmd")
+load("~/Desktop/Final-Project/test.Rmd")
+
+autoplot(bt_tune, metric = "rmse")
+show_best(bt_tune, metric = "rmse") %>% select(-.estimator, -.config)
+```
+Pulling up its metrics, the model's smallest mean is .449.
+
+### Ridge Regression
+```{r}
+ridge_recipe <- 
+  recipe(formula = score ~ ., data = tinder_train) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_normalize(all_predictors())
+
+ridge_spec <- linear_reg(mixture = 0, penalty = tune()) %>%
+  set_mode("regression") %>%
+  set_engine("glmnet")
+
+ridge_fit <- fit(ridge_spec, score ~ ., data = tinder_train)
+ridge_fit %>%
+  extract_fit_engine() %>%
+  plot(xvar = "lambda")
+
+ridge_workflow <- workflow() %>% 
+  add_recipe(ridge_recipe) %>% 
+  add_model(ridge_spec)
+
+penalty_grid <- grid_regular(penalty(range = c(-5, 5)), levels = 5)
+penalty_grid
+
+tune_res <- tune_grid(
+  ridge_workflow,
+  resamples = tinder_folds, 
+  grid = penalty_grid
+)
+
+tune_res
+
+autoplot(tune_res)
+collect_metrics(tune_res)
+best_penalty <- select_best(tune_res, metric = "rmse")
+best_penalty
+```
+Here, we can see that the smallest mean for the ridge regression model is .468. Although it is relatively low, Boosted Tree's mean is still smaller.
+
+
+## Logistic Regression
+```{r}
+tinder_train$score <- factor(tinder_train$score)
+tinder_test$score <- factor(tinder_test$score)
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+log_wkflow <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(recipe)
+
+log_fit <- fit(log_wkflow, tinder_train)
+log_acc <- predict(log_fit, new_data = tinder_train, type = "class") %>% 
+  bind_cols(tinder_train %>% select(score)) %>% 
+  accuracy(truth = score, estimate = .pred_class)
+log_acc
+
+log_test <- fit(log_wkflow, tinder_test)
+predict(log_test, new_data = tinder_test, type = "class") %>% 
+  bind_cols(tinder_test %>% select(score)) %>% 
+  accuracy(truth = score, estimate = .pred_class)
+
+```
+Compared to the other models, in terms of accuracy performance, I believe that the logistic regression model did not perform as well, with rouhgly 64%.
+
+## Final Model
+
+Comparing the results from all 4 tests, it appears that the Boosted Tree Model performed the best. Because of that, I will be applying the model to our testing data through a final workflow.
+
+```{r}
+bt_workflow_tuned <- bt_workflow %>% 
+  finalize_workflow(select_best(bt_tune, metric = "rmse"))
+
+tinder_train$score <- as.numeric(tinder_train$score)
+final_model <- fit(bt_workflow_tuned, tinder_train)
+
+#setting model to testing data
+tinder_test$score <- as.numeric(tinder_test$score)
+augment(final_model, new_data = tinder_test) %>%
+  rmse(truth = score, estimate = .pred)
+
+```
+Based on a rule of thumb, it can be said that RMSE values between 0.2 and 0.5 shows that the model can relatively predict the data accurately. Because the estiimate on the final testing data is around .416, I believe this model is relatively accurate. However, there are still many adjustments that could be made from this assignment. 
+
+I did struggle a bit more than anticipated in terms of manipulating the data and choosing the correct models, and while I am not sure my code is correct, I am happy that I got it to run in what appears to be relatively successful. 
