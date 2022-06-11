@@ -1,0 +1,10 @@
+﻿Content = initial review
+Content_final = filtered out key words from review
+Score = app score ranging from 1-5; 1 being the best, 5 being the worst
+Rating = scale from good, average, to bad; corresponds with score
+* Good: 4-5
+* Average: 3
+* Bad: 0-2
+
+
+Text_analysis: function to filter through reviews and only extract keywords and corresponding score
